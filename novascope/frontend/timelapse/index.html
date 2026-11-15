@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPHEREx Time-Lapse</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3' fill='%23d6b46c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="timelapse.css">
+</head>
+<body>
+<header class="top">
+  <h1 class="brand">SPHEREx Time-Lapse<small>Watch any patch of sky change across SPHEREx's all-sky scans</small></h1>
+  <nav><a href="../">NovaScope (star map)</a><a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">SPHEREx at IRSA</a></nav>
+</header>
+
+<main class="app">
+  <!-- Controls -->
+  <div class="controls">
+    <div class="card">
+      <label class="label" for="target">Where to look</label>
+      <input class="field" id="target" placeholder="08h55m10.8s -07d14m42.5s" autocomplete="off">
+      <p class="hint">Right Ascension and Declination (hours or degrees), or an object name.</p>
+      <div class="chips" id="presets" style="margin-top:10px"></div>
+      <button class="go" id="goBtn">Show images</button>
+      <label class="filebtn" for="fileIn">Or open your own SPHEREx FITS files<input type="file" id="fileIn" accept=".fits,.fit,.fts" multiple></label>
+    </div>
+    <div class="card">
+      <div class="two">
+        <div><label class="label" for="fov">Field of view</label>
+          <select class="field" id="fov"><option value="0.05">3′ (0.05°)</option><option value="0.1" selected>6′ (0.1°)</option><option value="0.2">12′ (0.2°)</option><option value="0.3">18′ (0.3°)</option></select></div>
+        <div><label class="label" for="maxn">Images to load</label>
+          <select class="field" id="maxn"><option>24</option><option selected>48</option><option>96</option><option>160</option></select></div>
+      </div>
+      <label class="label" for="release" style="margin-top:10px">Data release</label>
+      <select class="field" id="release">
+        <option value="spherex_dr1">DR1 · wide survey</option>
+        <option value="spherex_dr1_deep">DR1 · deep fields</option>
+        <option value="spherex_qr3">Quick Release 3 · newest weeks</option>
+        <option value="spherex_qr3_deep">Quick Release 3 · deep fields</option>
+      </select>
+      <p class="hint">Bigger fields show fast movers longer but take more time to download.</p>
+    </div>
+    <div class="card">
+      <span class="label">Detector band</span>
+      <div class="seg cols7" id="bands"></div>
+      <span class="label" style="margin-top:12px">Frames</span>
+      <div class="seg cols2" id="framesMode">
+        <button data-v="visit" class="on">Stack each visit</button><button data-v="each">Every image</button>
+      </div>
+      <span class="label" style="margin-top:12px">Show</span>
+      <div class="seg cols3" id="showMode">
+        <button data-v="image" class="on">Image</button><button data-v="median">Minus still sky</button><button data-v="first">Change from first</button>
+      </div>
+      <label class="label" for="contrast" style="margin-top:12px">Contrast</label>
+      <input class="range" type="range" id="contrast" min="0" max="100" value="70">
+      <label class="check" id="gaiaLabel"><input type="checkbox" id="ovGaia" checked> <span id="gaiaText">Gaia DR3 stars, moved to each date</span></label>
+      <label class="check"><input type="checkbox" id="ovTarget" checked> Predicted target position</label>
+      <label class="check"><input type="checkbox" id="smooth"> Smooth pixels</label>
+    </div>
+    <div class="card">
+      <span class="label">Share</span>
+      <div class="small-btns"><button class="btn" id="copyLink">Copy link</button><button class="btn" id="copyEmbed">Copy embed code</button><button class="btn" id="savePng">Save frame</button></div>
+      <div class="msg" id="shareMsg"></div>
+      <pre class="embed" id="embedCode" hidden></pre>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <section class="stage">
+    <div class="viewer" id="viewer">
+      <canvas id="view" aria-label="SPHEREx image of the chosen sky position"></canvas>
+      <span class="simtag" id="simTag" hidden>Simulated preview</span>
+      <div class="status" id="status">
+        <div><h2 id="statusTitle">Pick a target to begin</h2><p id="statusText">Choose one of the test targets on the left, or type coordinates. The tool asks NASA's IRSA archive for every SPHEREx image of that spot and plays them in date order.</p><div class="bar" id="bar" hidden><i id="barFill"></i></div></div>
+      </div>
+    </div>
+    <div class="player">
+      <div class="transport">
+        <button id="prevBtn" aria-label="Previous frame">◀</button>
+        <button id="playBtn" class="play" aria-label="Play">▶</button>
+        <button id="nextBtn" aria-label="Next frame">▶︎|</button>
+      </div>
+      <input type="range" id="frameSlider" min="0" max="0" value="0" aria-label="Frame">
+      <div class="counter"><select class="field" id="fps" style="width:auto;padding:4px 6px" aria-label="Speed"><option value="2">2 fps</option><option value="4" selected>4 fps</option><option value="8">8 fps</option></select> <span id="counter">0 / 0</span></div>
+    </div>
+    <div class="frameinfo" id="frameInfo"></div>
+  </section>
+
+  <!-- Side -->
+  <aside class="side">
+    <div class="card">
+      <h3 id="tName">No target yet</h3>
+      <p class="note" id="tNote">The five buttons are the challenge's test targets.</p>
+      <div class="target-facts" id="tFacts"></div>
+    </div>
+    <div class="card">
+      <h3>Brightness at the target</h3>
+      <div class="seg cols2" id="chartMode" style="margin:6px 0 8px"><button data-v="time" class="on">Over time</button><button data-v="wave">By wavelength</button></div>
+      <canvas id="chart"></canvas>
+      <div class="legend" id="legend"></div>
+      <p class="note">Measured in a small circle at the predicted target position in every image. Click a point to jump to that image. "By wavelength" is a rough spectrum: the median of each band, with a line showing how much it varied.</p>
+    </div>
+    <div class="card">
+      <h3>How to read it</h3>
+      <p><b>Image</b> plays the pictures as a video. A moving object hops between frames while background stars stay put.</p>
+      <p><b>Minus still sky</b> subtracts the median of all frames, so anything that never moves disappears. A mover shows up as a pair: <span style="color:var(--future)">blue</span> where it is in this frame, <span style="color:var(--past)">orange</span> where it sits in the other frames. A star that brightens turns blue; one that fades turns orange.</p>
+      <p><b>Stack each visit</b> adds up all images taken during one sweep of the sky. That cleans up the noise, so faint things like brown dwarfs become visible.</p>
+      <p class="note">SPHEREx images come from NASA/IPAC IRSA. Star positions: ESA Gaia DR3. Names: CDS Sesame.</p>
+    </div>
+  </aside>
+</main>
+
+<script src="timelapse.js"></script>
+</body>
+</html>

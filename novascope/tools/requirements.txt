@@ -1,0 +1,7 @@
+# Only needed to REBUILD the data files. The app itself needs nothing installed.
+numpy
+pandas
+matplotlib
+scipy
+pillow
+astropy        # extract_atlas.py only

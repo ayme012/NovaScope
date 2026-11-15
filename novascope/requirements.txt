@@ -1,0 +1,2 @@
+# Nothing to install: the backend uses only Python's standard library.
+# (tools/requirements.txt lists packages for the optional data-building scripts.)

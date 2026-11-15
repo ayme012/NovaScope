@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovaScope: Navigate the stars, Discover the Universe</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3' fill='%23d6b46c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="sky" aria-label="Interactive star map. Drag to look around, scroll to zoom, click a star for details."></canvas>
+
+<div class="epoch">
+  <div class="brand">NovaScope<span class="tagline">Navigate the stars, Discover the Universe</span><small>Real star motions from the HYG catalog · SPHEREx images from NASA/IPAC IRSA</small></div>
+  <div class="year" id="yearText">2026 CE</div>
+  <div class="when" id="whenText">Today</div>
+  <div class="pole" id="poleText"></div>
+</div>
+<div class="hint">Drag to look around · scroll, pinch, double-click or + − to zoom · click a star</div>
+<div class="zoombtns" role="group" aria-label="Zoom"><button class="btn" id="zoomIn" aria-label="Zoom in" title="Zoom in (+)">+</button><button class="btn" id="zoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button></div>
+<div class="cut-pop" id="cutPop" hidden role="group" aria-labelledby="cpTitle">
+  <span id="cpTitle" class="sr-only">Images</span>
+  <input type="range" id="cpFrame" min="0" max="1" value="0" aria-label="Frame">
+  <div class="cp-btns"><button class="btn" id="cpPrev" aria-label="Previous image">◀</button><button class="btn" id="cpPlay">❚❚ Pause</button><button class="btn" id="cpNext" aria-label="Next image">▶</button><button class="btn" id="cpDiff">Difference</button><button class="btn" id="cpClose" aria-label="Make smaller">✕</button></div>
+  <div class="legend" id="cpLegend" hidden><span><i style="background:var(--past)"></i>only in the first image</span><span><i style="background:var(--future)"></i>only in the last</span></div>
+  <p class="cp-note" id="cpNote"></p>
+</div>
+<div class="atlas-cap" id="atlasCap" hidden>
+  <div class="ac-top"><b id="acTitle">3I/ATLAS</b><span id="acDate"></span></div>
+  <div class="ac-bar"><i id="acFill"></i></div>
+  <div class="ac-info" id="acInfo"></div>
+  <div class="ac-btns"><button class="btn" id="acPause">Pause</button><button class="btn" id="acReplay">Replay</button><button class="btn" id="acClose" aria-label="Close">✕</button></div>
+</div>
+
+<aside id="panel">
+  <div class="searchbar">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="starSearch" type="search" placeholder="Search stars or constellations" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="suggest" aria-label="Search stars or constellations">
+    <ul class="suggest" id="suggest" role="listbox" hidden></ul>
+  </div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-star" aria-selected="true" data-pane="pane-star">Stars</button>
+    <button role="tab" id="tab-journeys" aria-selected="false" data-pane="pane-journeys">Journeys</button>
+    <button role="tab" id="tab-layers" aria-selected="false" data-pane="pane-layers">Layers</button>
+    <button role="tab" id="tab-spherex" aria-selected="false" data-pane="pane-spherex">Time-Lapse Journey</button>
+  </div>
+
+  <section class="pane on" id="pane-star" role="tabpanel">
+    <div id="starDetail" hidden></div>
+    <div id="starList">
+      <p class="note" style="margin-top:0">Click any star on the map, or pick one from this list, to see where it is, fun facts about it, and how it changes by the year on the dial.</p>
+      <div class="namehead"><span class="note" id="namesCount"></span>
+        <select id="namesSort" aria-label="Sort the list"><option value="mag">Brightest first</option><option value="az">A to Z</option><option value="dist">Nearest first</option><option value="con">By constellation</option></select></div>
+      <ol class="namelist" id="nameList"></ol>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-journeys" role="tabpanel">
+    <p class="note">Each journey turns the sky to the right spot and runs the clock for you.</p>
+    <div id="journeyList"></div>
+  </section>
+
+  <section class="pane" id="pane-layers" role="tabpanel">
+    <div id="toggles"></div>
+    <h3 style="margin-top:18px">How this works</h3>
+    <p class="note">Each star moves in a straight line through space using its measured sideways motion, its speed toward or away from us, and its distance. Its brightness changes with distance. Earth's slow wobble (precession, one turn every 25,772 years) moves the celestial poles.</p>
+    <p class="note">Limits: only stars brighter than magnitude 7 today are shown, so a faint star that will move close later is missing. Over hundreds of thousands of years real paths curve as stars orbit the galaxy.</p>
+    <p class="note">Star data: HYG Database v4.1 by Astronexus (CC BY-SA 4.0), built from Hipparcos, Yale Bright Star and Gliese catalogs. Constellation lines and Milky Way outline: d3-celestial by Olaf Frohn (BSD licence).</p>
+  </section>
+
+  <section class="pane" id="pane-spherex" role="tabpanel">
+    <h3>TIME-LAPSE</h3>
+    <ol class="starthere" aria-label="Start here">
+      <li><b>Pick a target</b> from the buttons below, or type its coordinates and press <b>Show</b>.</li>
+      <li><b>Watch the square on the map.</b> SPHEREx's pictures of that spot play there like a little video, oldest first.</li>
+      <li><b>Click the square</b> to make it bigger. Press <b>Difference</b> to see only what changed: a moving star shows up as an orange and blue pair.</li>
+    </ol>
+    <div class="tlcard" id="tlFull">
+      <div><b>Full Time-Lapse tool</b><span>Bigger player, pick a colour band, stack images, Gaia star overlay, brightness charts.</span></div>
+      <a class="btn primary" id="tlFullBtn" href="timelapse/" target="_blank" rel="noopener">Open ↗</a>
+      <p class="tlcard-off" id="tlFullOff">Runs on your computer, because it downloads from NASA: double-click <b>start-novascope</b>, then open this tab again.</p>
+    </div>
+    <label class="kicker" for="tlCoords">Right Ascension and Declination</label>
+    <div class="tlrow"><input class="search" id="tlCoords" placeholder="08h55m10.8s -07d14m42.5s" autocomplete="off" spellcheck="false">
+      <select id="tlFov" aria-label="Field of view"><option value="0.05">3′</option><option value="0.1" selected>6′</option><option value="0.2">12′</option></select>
+      <button class="btn on" id="tlGo">Show</button></div>
+    <p class="note" id="tlMsg" style="margin:4px 0 6px">Hours or degrees both work, e.g. <code>133.795 -7.245</code>.</p>
+    <div class="chips" id="tlPresets"></div>
+    <p class="note tlwarn"><b>Pinwheel Galaxy · real data</b> plays 8 real SPHEREx images of the Pinwheel Galaxy from IRSA's cutouts tutorial. This page can't download from NASA's archive, so other coordinates and the test targets play <b>simulated</b> images. Drop real SPHEREx FITS files in the box below to play your own data.</p>
+    <label class="drop" id="drop" for="fitsInput">Drop SPHEREx FITS files here: two dates, or the cutout file from IRSA's tutorial. Or click to choose.<input type="file" id="fitsInput" accept=".fits,.fit,.fts" multiple></label>
+    <div class="viewer"><canvas id="fitsCanvas" width="96" height="96"></canvas><span class="tag" id="fitsTag">Then</span><span class="sim" id="simTag">Simulated</span></div>
+    <div class="modes">
+      <button class="btn on" data-mode="play">Play</button>
+      <button class="btn" data-mode="first">First</button>
+      <button class="btn" data-mode="last">Last</button>
+      <button class="btn" data-mode="diff">Difference</button>
+    </div>
+    <div class="legend" id="diffLegend" hidden><span><i style="background:var(--past)"></i>only in the first image</span><span><i style="background:var(--future)"></i>only in the last</span></div>
+    <label class="slim" for="fitsFrame" id="frameRow" hidden>Frame <input type="range" id="fitsFrame" min="0" max="1" value="0" style="flex:1"></label>
+    <label class="slim" for="contrast">Contrast <input type="range" id="contrast" min="90" max="99.9" step="0.1" value="99.5"></label>
+    <div class="meta" id="fitsMeta"></div>
+    <div class="row"><button class="btn" id="showOnSky">Show this spot on the sky</button></div>
+    <p class="note" style="margin-top:12px">Brightness can also differ because SPHEREx sees a slightly different wavelength at each spot on its detector. Look for objects that jump position or vanish.</p>
+    <p class="foldlabel">Watch</p>
+    <details class="fold" id="secAtlas"><summary><span>A comet from another star<small>Follow 3I/ATLAS along its real path and watch it animate</small></span></summary><div class="fold-body">
+      <p class="note">3I/ATLAS is only the third object ever found that came from outside our solar system. SPHEREx photographed it in August and December 2025. The cyan line on the map is its real path: the position SPHEREx recorded with each image, with dots coloured by band.</p>
+      <div class="meta">
+        <span class="k">Images</span><span>259, all six bands (0.75–5.0 µm)</span>
+        <span class="k">Dates</span><span>1–15 Aug 2025 and 8–14 Dec 2025</span>
+        <span class="k">August</span><span>RA 252.7° → 243.0°, Dec −17.5° → −16.3°</span>
+        <span class="k">December</span><span>RA 173.8° → 166.4°, Dec +2.8° → +5.4°</span>
+        <span class="k">Speed</span><span>about 0.7° a day across the sky in August</span>
+        <span class="k">Image files</span><span>about 70 MB each, 18 GB in all (Quick Release 2)</span>
+      </div>
+      <table class="compare" id="atlasDays"><tr><th>Day</th><th>Images</th><th>Bands</th></tr></table>
+      <p class="note">The dashed line only joins the two runs. The comet's path between August and December isn't in this list.</p>
+      <div class="row"><button class="btn primary" id="atlasPlay">▶ Animate journey</button></div>
+      <div class="row"><button class="btn" id="atlasAug">Show August</button><button class="btn" id="atlasDec">Show December</button><button class="btn" id="atlasAll">Whole path</button></div>
+      <p class="note" style="margin-top:8px">From your SPHEREx observation list for 3I/ATLAS (obscore_3I_Atlas.vot, NASA/IPAC IRSA).</p>
+    </div></details>
+    <details class="fold" id="secCutouts"><summary><span>The Pinwheel Galaxy up close<small>8 real SPHEREx pictures, and a zoom-in animation</small></span></summary><div class="fold-body">
+      <p class="note">IRSA's cutout tutorial finds every band 2 image of M101 and keeps only a small square around the galaxy from each one, so it downloads a few kilobytes instead of whole images.</p>
+      <div class="meta">
+        <span class="k">Target</span><span>M101, RA 210.80227°, Dec +54.34895°</span>
+        <span class="k">Cutout size</span><span>0.1° (6 arcminutes)</span>
+        <span class="k">Band</span><span>2 (SPHEREx-D2, 1.10–1.62 µm)</span>
+        <span class="k">Data</span><span>DR1 and QR3</span>
+        <span class="k">Images found</span><span>84</span>
+        <span class="k">Search time</span><span>about 20 s</span>
+        <span class="k">Download</span><span>2.3 min one by one, about 13 s with 10 at once</span>
+        <span class="k">Output</span><span>spherex_cutouts_mef.fits</span>
+      </div>
+      <ol class="note steps">
+        <li>Search IRSA's SPHEREx tables for band 2 images that contain M101, oldest first.</li>
+        <li>Add <code>?center=RA,Dec&amp;size=0.1</code> to each image link, so IRSA sends only the cutout.</li>
+        <li>Download the cutouts ten at a time.</li>
+        <li>Pack them into one FITS file with a CUTOUT_INFO table of dates and wavelengths.</li>
+      </ol>
+      <p class="note">The viewer at the top of this tab opens that file. Drop <code>spherex_cutouts_mef.fits</code> in the box and press Play to watch every cutout in date order.</p>
+      <div class="row"><button class="btn primary" id="m101Play">▶ Animate: zoom into M101</button><button class="btn" id="showM101">Show M101 on the sky</button></div>
+      <p class="note" style="margin-top:8px">From <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-cutouts/">IRSA's SPHEREx cutouts tutorial</a>.</p>
+    </div></details>
+    <details class="fold" id="secMosaic"><summary><span>The Pinwheel Galaxy in 102 colours<small>Starlight, glowing dust, and where new stars are born</small></span></summary><div class="fold-body">
+      
+      <div class="meta">
+        <span class="k">Centre</span><span>RA 210.80227°, Dec +54.34895°</span>
+        <span class="k">Cube</span><span>267 × 267 pixels × 102 wavelengths</span>
+        <span class="k">Pixel size</span><span>9″ (about 40′ across)</span>
+        <span class="k">Range</span><span>0.75–5 µm</span>
+        <span class="k">Dust map</span><span>plane 63, 3.293 µm, minus planes 61, 62, 64, 65</span>
+      </div>
+      <figure class="fig"><img data-fig="mosaic" alt="SPHEREx mosaic of M101 with a solid aperture circle and dotted background rings"><figcaption>All 102 wavelengths combined. The solid circle (20 px) measures the galaxy; the dotted rings (60–100 px) measure the sky around it.</figcaption></figure>
+      <figure class="fig"><img data-fig="spectrum" alt="Spectrum of M101 from 0.75 to 5 µm, peaking near 1.6 µm, with a small spike at 3.3 µm"><figcaption>M101's spectrum. Starlight peaks near 1.6 µm. The spike at 3.3 µm is glowing dust (PAH molecules); the other dotted lines mark hydrogen gas.</figcaption></figure>
+      <figure class="fig"><img data-fig="pah" alt="Map of 3.3 µm dust emission tracing M101's spiral arms"><figcaption>The 3.3 µm dust glow on its own, tracing the spiral arms.</figcaption></figure>
+      <figure class="fig"><img data-fig="galex" alt="GALEX ultraviolet image of M101 in blue with red dust contours"><figcaption>Dust (red outlines) over ultraviolet light from GALEX (blue). The dust mostly follows young, hot stars, but some of the brightest ultraviolet spots have none, perhaps because strong starlight destroys the small dust grains there.</figcaption></figure>
+      <p class="note" style="margin-top:8px">From <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-mosaic/">IRSA's SPHEREx mosaic tutorial</a>. Figures and M101 images: IRSA tutorials, © Caltech, BSD 3-Clause licence.</p>
+    </div></details>
+    <p class="foldlabel">Learn</p>
+    <details class="fold" id="secAbout"><div class="fold-body">
+      <table class="compare bandtable">
+        <tr><th>Band</th><th>Wavelength</th><th>Resolving power</th></tr>
+        <tr><td><i style="background:#7fa8ff"></i>1</td><td>0.75–1.09 µm</td><td>39</td></tr>
+        <tr><td><i style="background:#69d0d8"></i>2</td><td>1.10–1.62 µm</td><td>41</td></tr>
+        <tr><td><i style="background:#93d27c"></i>3</td><td>1.63–2.41 µm</td><td>41</td></tr>
+        <tr><td><i style="background:#e3c95c"></i>4</td><td>2.42–3.82 µm</td><td>35</td></tr>
+        <tr><td><i style="background:#ee9a55"></i>5</td><td>3.83–4.41 µm</td><td>112</td></tr>
+        <tr><td><i style="background:#e8697c"></i>6</td><td>4.42–5.00 µm</td><td>128</td></tr>
+      </table>
+      <p class="note">Resolving power says how finely a band separates colours of light. Bands 5 and 6 see about three times finer detail than bands 1 to 4.</p>
+    </div></details>
+    <details class="fold" id="secIntro"><summary><span>What one picture looks like<small>Why every picture is a rainbow of colours</small></span></summary><div class="fold-body">
+      <div class="meta">
+        <span class="k">Target</span><span>20h18m46.4s +42°26′37″</span>
+        <span class="k">Images there</span><span>443 in DR1 and QR3, when the tutorial ran</span>
+        <span class="k">Image ID</span><span>2025W18_1B_0074_2</span>
+        <span class="k">Detector</span><span>1 (0.75–1.09 µm)</span>
+        <span class="k">Size</span><span>2040 × 2040 pixels</span>
+        <span class="k">Centre</span><span>RA 303.878°, Dec +40.549°</span>
+        <span class="k">At centre</span><span>0.904 µm, 0.023 µm wide</span>
+        <span class="k">Units</span><span>MJy/sr</span>
+        <span class="k">Layers</span><span>IMAGE, FLAGS, VARIANCE, ZODI, EPSF, WCS-WAVE</span>
+      </div>
+      <figure class="fig"><img data-fig="lvf" alt="Grey-scale map of detector 1: wavelength runs from about 1.1 µm at the bottom to 0.75 µm at the top"><figcaption>The wavelength each pixel of detector 1 sees, from about 0.75 µm at the top to 1.1 µm at the bottom.</figcaption></figure>
+      <div class="row"><button class="btn" id="showTutorial">Show this spot on the sky</button></div>
+      <p class="note" style="margin-top:8px">From <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/">IRSA's SPHEREx introduction tutorial</a>.</p>
+    </div></details>
+    <details class="fold" id="secCube"><summary><span>The whole sky in 102 colours<small>All sky map, used to measure a cloud of space dust</small></span></summary><div class="fold-body">
+      <div class="meta">
+        <span class="k">Target</span><span>04h03m14.6s +51°20′25″ (RA 60.811°, Dec 51.340°)</span>
+        <span class="k">Data</span><span>SPHEREx DR1 all-sky cube</span>
+        <span class="k">Layers</span><span>102, from 0.75 to 5 µm</span>
+        <span class="k">Shown</span><span>layer 62, 3.3 µm</span>
+        <span class="k">Patch</span><span>512 × 512 pixels × 102 layers, about 300 MB</span>
+        <span class="k">Measuring</span><span>5 px circle, sky from a 40–60 px ring</span>
+      </div>
+      <figure class="fig"><img data-fig="hipssci" alt="SPHEREx science image of the patch at 3.3 µm with a red circle on the cloud"><figcaption>The patch at 3.3 µm. The red circle is the cloud.</figcaption></figure>
+      <figure class="fig"><img data-fig="hipshits" alt="Hits map of the same patch with diagonal grey bands"><figcaption>How many SPHEREx images went into each pixel, from 0 to about 30. The darker diagonal bands are where scans overlapped. IRSA's matching flags map, which marks problem pixels, is almost blank here.</figcaption></figure>
+      <figure class="fig"><img data-fig="hipsap" alt="All 102 layers combined, with a small aperture on the cloud and a dotted background ring"><figcaption>All 102 layers combined, with the circles used to measure the cloud's light.</figcaption></figure>
+      <figure class="fig"><img data-fig="hipsspec" alt="Spectrum of the cloud from 0.75 to 5 µm with sharp peaks at 1.88, 3.3, 4.05 and 4.67 µm"><figcaption>The cloud's spectrum. Sharp peaks from hot hydrogen gas (Paα at 1.88 µm, Brα at 4.05 µm), glowing dust (PAH at 3.3 µm) and carbon monoxide (CO at 4.67 µm) stand far above the starlight. IRSA says this cube is for viewing; science-grade measurements should use its SPHEREx spectrophotometry tool.</figcaption></figure>
+      <div class="row"><button class="btn" id="showCloud">Show this cloud on the sky</button></div>
+      <p class="note" style="margin-top:8px">From <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-hipscube/">IRSA's SPHEREx all-sky cube tutorial</a>. Figures © Caltech, BSD 3-Clause licence.</p>
+    </div></details>
+    
+    <p class="note" style="margin-top:12px"><a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">SPHEREx at IRSA</a> · <a href="https://irsa.ipac.caltech.edu/applications/spherex">SPHEREx Data Explorer</a> · <a href="https://irsa.ipac.caltech.edu/applications/MOST">Moving Object Search Tool</a></p>
+  </section>
+</aside>
+
+<div class="timebar">
+  <div class="transport">
+    <button class="btn" id="playBack" title="Run time backward" aria-label="Run time backward">◀</button>
+    <button class="btn" id="playFwd" title="Run time forward" aria-label="Run time forward">▶</button>
+    <button class="btn" id="today">Today</button>
+  </div>
+  <div class="dial">
+    <input type="range" id="slider" min="-1000" max="1000" step="1" value="0" aria-label="Year">
+    <div class="ticks" id="ticks"></div>
+  </div>
+  <div class="goto">
+    <label class="note" for="speed">Speed</label>
+    <select id="speed">
+      <option value="100">100 yr/s</option>
+      <option value="1000" selected>1,000 yr/s</option>
+      <option value="10000">10,000 yr/s</option>
+    </select>
+    <input id="yearInput" placeholder="e.g. 2600 BCE" aria-label="Go to year">
+    <button class="btn" id="goYear">Go</button>
+  </div>
+</div>
+
+<!-- Data first (plain JS files, so the page also works when opened by double-click), then the app. -->
+<script src="data/stars.js"></script>
+<script src="data/spherex.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
